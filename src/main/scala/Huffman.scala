@@ -1,4 +1,5 @@
 import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 
 sealed abstract class Tree
 case class Node(left: Tree, right: Tree) extends Tree
@@ -20,7 +21,7 @@ object Huffman {
     queue.enqueue(node)
   }
 
-  def buildMappingTable(tree: Tree, map: mutable.Map[Tree, Int]): List[(Char, String)] = {
+  def buildMappingTable(tree: Tree): List[(Char, String)] = {
     def recurse(tree: Tree, prefix: String): List[(Char, String)] = tree match {
       case Node(left, right) => recurse(left, prefix+"0") ::: recurse(right, prefix+"1")
       case leaf @ Leaf(c) => (c, prefix) :: Nil
@@ -28,24 +29,49 @@ object Huffman {
     recurse(tree, "")
   }
 
-  def buildMappingTable(text: String): Map[Char, String] = {
-    val map = mutable.Map.empty[Tree,Int] ++= frequencyByChar(text)
+  def buildTree(text: String): Tree = {
+    val map = mutable.Map.empty[Tree, Int] ++= frequencyByChar(text)
     val queue = new mutable.PriorityQueue[Tree]()(treeOrdering(map)) ++= map.keysIterator
-    while(queue.size > 1) {
+    while (queue.size > 1) {
       buildNode(queue, map)
     }
-    buildMappingTable(queue.dequeue(), map).toMap
+    queue.dequeue()
+  }
+
+  def decode(encoded: String, tree: Tree): String = {
+    def recurse(encoded: List[Char], decoded: mutable.ListBuffer[Char], fullTree: Tree, cursor: Tree) {
+      cursor match {
+        case Leaf(c) => {
+          decoded += c
+          if (encoded != Nil) {
+            recurse(encoded, decoded, fullTree, fullTree)
+          }
+        }
+        case Node(left, right) => {
+          val nextNode = if (encoded.head == '0') { left } else { right }
+          recurse(encoded.tail, decoded, fullTree, nextNode)
+        }
+      }
+    }
+    val decoded = new ListBuffer[Char]
+    recurse(encoded.toList, decoded, tree, tree)
+    decoded.mkString
   }
 
   def main(args: Array[String]): Unit = {
-    val initialValue = "initial value"
+    val text = "I really like a pint of Guinness"
 
-    val mappingTable = buildMappingTable(initialValue)
+    val tree = buildTree(text)
+    val mappingTable: Map[Char, String] = buildMappingTable(tree).toMap
+
     println(s"Mapping table: ${mappingTable}")
 
-    val encoded = initialValue.map(c => mappingTable(c)).mkString("")
+    val encoded = text.map(c => mappingTable(c)).mkString
     println(encoded)
+    println(s"Encoded value length: ${encoded.length}")
 
+    val decoded = decode(encoded, tree)
+    println(s"$decoded")
   }
 
 }
